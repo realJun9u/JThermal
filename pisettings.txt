@@ -1,0 +1,18 @@
+sudo apt-get -y install build-essential python-dev python-setuptools i2c-tools python3-smbus python3-scipy python3-pygame
+git clone https://github.com/WiringPi/WiringPi.git
+cd WiringPi
+./build
+cd ~
+git clone https://github.com/adafruit/Adafruit_Python_GPIO.git
+cd Adafruit_Python_GPIO
+sudo python3 setup.py install
+sudo pip3 install colour Adafruit_AMG88xx
+cd ~
+git clone https://github.com/adafruit/Adafruit_AMG88xx_python
+
+# Samba Client Settings
+sudo apt-get install -y samba-client cifs-utils
+smbclient -L 155.230.16.121 -U pubid
+sudo mkdir /mnt/samba
+sudo mount -t cifs //155.230.16.121/smbdir /mnt/samba -o username=pubid
+ls -l /mnt/smbdir
