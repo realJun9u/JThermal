@@ -1,5 +1,33 @@
 #!/bin/bash
-sudo apt-get install -y build-essential cmake git unzip pkg-config libjpeg-dev libjasper-dev libpng-dev libtiff5-dev libavcodec-dev libavformat-dev libswscale-dev libxvidcore-dev libx264-dev libxine2-dev libv4l-dev v4l-utils libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgtk2.0-dev mesa-utils libgl1-mesa-dri libgtkgl2.0-dev libgtkglext1-dev libatlas-base-dev gfortran libeigen3-dev python3-dev python3-numpy python-dev python3-dev
+sudo apt-get install -y build-essential\
+cmake\
+git\
+unzip\
+pkg-config\
+libjpeg-dev\
+libjasper-dev\
+libpng-dev\
+libtiff5-dev\
+libavcodec-dev\
+libavformat-dev\
+libswscale-dev\
+libxvidcore-dev\
+libx264-dev\
+libxine2-dev\
+libv4l-dev\
+v4l-utils\
+libgstreamer1.0-dev\
+libgstreamer-plugins-base1.0-dev\
+libgtk2.0-dev\
+mesa-utils\
+libgl1-mesa-dri\
+libgtkgl2.0-dev\
+libgtkglext1-dev\
+libatlas-base-dev\
+gfortran\
+libeigen3-dev\
+python3-dev\
+python3-numpy\
 
 cd /home/pi
 mkdir opencv
