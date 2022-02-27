@@ -5,8 +5,8 @@ except ImportError:
     print("ERROR python-opencv must be installed")
     exit(1)
 
-#cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
+#cap = cv2.VideoCapture(1)
 
 if not cap.isOpened():
     print("Camera not found!")
