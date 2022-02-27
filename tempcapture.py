@@ -5,6 +5,8 @@ from uvctypes import *
 import time
 import cv2
 import numpy as np
+import datetime
+import pandas as pd
 try:
   from queue import Queue
 except ImportError:
@@ -36,15 +38,18 @@ def ktof(val):
 def ktoc(val):
   return (val - 27315) / 100.0
 
+# def datatocelsius(data):
+#    return (data - 27315) / 100.0
+
 def raw_to_8bit(data):
   cv2.normalize(data, data, 0, 65535, cv2.NORM_MINMAX)
   np.right_shift(data, 8, data)
-  return cv2.cvtColor(np.uint8(data), cv2.COLOR_GRAY2RGB)
+  return cv2.flip(cv2.cvtColor(np.uint8(data), cv2.COLOR_GRAY2RGB),-1)
 
 def display_temperature(img, val_k, loc, color):
   # Kelvin to Celsius
   val = ktoc(val_k)
-  cv2.putText(img,"{0:.1f} degC".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
+  cv2.putText(img,"{0:.1f} degC".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 2)
   x, y = loc
   # draw crossline
   cv2.line(img, (x - 2, y), (x + 2, y), color, 1)
@@ -92,22 +97,34 @@ def main():
         print("uvc_start_streaming failed: {0}".format(res))
         exit(1)
       
-      cv2.namedWindow("Lepton Radiometry")
+      wname="Lepton Radiometry"
+      cv2.namedWindow(wname,cv2.WINDOW_NORMAL)
+      cv2.resizeWindow(wname, width=640, height=480)
       try:
         while True:
           data = q.get(True, 500)
-          #print("Raw Data Shape :",data.shape,"Data Type :",data.dtype, "Type :",type(data))
-          #print(np.max(data))
           if data is None:
-            break
-          data = cv2.resize(data[:,:], (640, 480))
+             break
           minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data)
+          data_temp = data.copy()
           img = raw_to_8bit(data)
-          display_temperature(img, minVal, minLoc, (255, 0, 0))
-          display_temperature(img, maxVal, maxLoc, (0, 0, 255))
-          cv2.imshow("Lepton Radiometry", img)
-          if cv2.waitKey(10) == 27:
+          img = cv2.applyColorMap(img, cv2.COLORMAP_INFERNO)
+          # display_temperature(img, minVal, minLoc, (255, 0, 0))
+          # display_temperature(img, maxVal, maxLoc, (0, 0, 255))
+          cv2.imshow(wname, img)
+          k = cv2.waitKey(50) # 20fps
+          if k == 27:
             break
+          elif k == 13:
+            now = datetime.datetime.now()
+            fname = now.strftime("%m%d_%H%M%S")
+            cv2.imwrite(f"./images/{fname}.jpg",img)
+            print(f"File {fname}.jpg is Saved")
+            data_temp = ktoc(data_temp)
+            df = pd.DataFrame(data_temp)
+            df = df.loc[::-1].loc[:,::-1]
+            df.to_csv(f"./images/{fname}.csv",index=False, header=None)
+
 
         cv2.destroyAllWindows()
       finally:
