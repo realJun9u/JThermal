@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 import datetime
 import pandas as pd
+import sys
+import os
 try:
   from queue import Queue
 except ImportError:
@@ -38,24 +40,44 @@ def ktof(val):
 def ktoc(val):
   return (val - 27315) / 100.0
 
-# def datatocelsius(data):
-#    return (data - 27315) / 100.0
-
 def raw_to_8bit(data):
   cv2.normalize(data, data, 0, 65535, cv2.NORM_MINMAX)
   np.right_shift(data, 8, data)
-  return cv2.flip(cv2.cvtColor(np.uint8(data), cv2.COLOR_GRAY2RGB),-1)
+  return cv2.cvtColor(np.uint8(data), cv2.COLOR_GRAY2RGB)
 
 def display_temperature(img, val_k, loc, color):
   # Kelvin to Celsius
   val = ktoc(val_k)
-  cv2.putText(img,"{0:.1f} degC".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 2)
+  # cv2.putText(img,"{0:.1f} degC".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 2)
   x, y = loc
   # draw crossline
   cv2.line(img, (x - 2, y), (x + 2, y), color, 1)
   cv2.line(img, (x, y - 2), (x, y + 2), color, 1)
 
 def main():
+  if len(sys.argv) < 2 and len(sys.argv) > 3:
+    print("Usage : lepton (experement number) [,(try number)]")
+    exit(1)
+  dirname = "/home/pi/test/JThermal/images/" + sys.argv[1]
+  
+  if sys.argv[1] == '3' or sys.argv[1] == '4':
+    if len(sys.argv) != 3:
+      print("Expirement 3,4 must need try number")
+      exit(1)
+    dirname += "/" + sys.argv[2]
+  
+  if sys.argv[1] == '4':
+    cap = cv2.VideoCapture(2)
+    if not cap.isOpened():
+      print("Camera not found!")
+      exit(1)
+  
+  if os.path.isdir(dirname) == False:
+    os.mkdir(dirname)
+  else:
+    print(dirname,"is exist!")
+    exit(1)
+  
   ctx = POINTER(uvc_context)()
   dev = POINTER(uvc_device)()
   devh = POINTER(uvc_device_handle)()
@@ -97,39 +119,42 @@ def main():
         print("uvc_start_streaming failed: {0}".format(res))
         exit(1)
       
-      wname="Lepton Radiometry"
-      cv2.namedWindow(wname,cv2.WINDOW_NORMAL)
-      cv2.resizeWindow(wname, width=640, height=480)
+      cv2.namedWindow("Lepton Radiometry",cv2.WINDOW_NORMAL)
+      cv2.resizeWindow("Lepton Radiometry", width=640, height=480)
       try:
         while True:
           data = q.get(True, 500)
           if data is None:
-             break
+            break
           minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data)
           data_temp = data.copy()
           img = raw_to_8bit(data)
           img = cv2.applyColorMap(img, cv2.COLORMAP_INFERNO)
           # display_temperature(img, minVal, minLoc, (255, 0, 0))
           # display_temperature(img, maxVal, maxLoc, (0, 0, 255))
-          cv2.imshow(wname, img)
+          img = cv2.flip(img,-1)
+          cv2.imshow("Lepton Radiometry", img)
           k = cv2.waitKey(50) # 20fps
           if k == 27:
             break
+          elif k == ord('t'):
+            print("Max Temperature :",ktoc(maxVal))
           elif k == 13:
             now = datetime.datetime.now()
-            fname = now.strftime("%m%d_%H%M%S")
-            cv2.imwrite(f"./images/{fname}.jpg",img)
+            fname = dirname + now.strftime("/%m%d_%H%M%S")
+            cv2.imwrite(f"{fname}.jpg",img)
             print(f"File {fname}.jpg is Saved")
             data_temp = ktoc(data_temp)
             df = pd.DataFrame(data_temp)
             df = df.loc[::-1].loc[:,::-1]
-            df.to_csv(f"./images/{fname}.csv",index=False, header=None)
-
-
+            df.to_csv(f"{fname}.csv",index=False, header=None)
+            if sys.argv[1] == '4':
+              ret,img2 = cap.read()
+              if ret:
+                cv2.imwrite(f"{fname}_.jpg",img2)
         cv2.destroyAllWindows()
       finally:
         libuvc.uvc_stop_streaming(devh)
-
       print("done")
     finally:
       libuvc.uvc_unref_device(dev)
