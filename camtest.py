@@ -1,11 +1,11 @@
-#!/home/pi/JThermal/.env/bin/python
+
 try:
     import cv2
 except ImportError:
     print("ERROR python-opencv must be installed")
     exit(1)
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(2)
 #cap = cv2.VideoCapture(1)
 
 if not cap.isOpened():
@@ -26,7 +26,7 @@ while True:
         print("Error reading image")
         break
 
-    img = cv2.flip(img,1)
+    # img = cv2.flip(img,1)
 
     cv2.imshow("C920", img)
     if cv2.waitKey(50) == 27: # 20fps

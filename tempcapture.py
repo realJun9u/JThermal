@@ -66,11 +66,16 @@ def main():
       exit(1)
     dirname += "/" + sys.argv[2]
   
-  if sys.argv[1] == '4':
+  if sys.argv[1] == '3' or sys.argv[1] == '4':
     cap = cv2.VideoCapture(2)
     if not cap.isOpened():
       print("Camera not found!")
       exit(1)
+    # cap.set(3,cap.get(3)/2)
+    # cap.set(4,cap.get(4)/2)
+  else:
+    cap = None
+    ret = False
   
   if os.path.isdir(dirname) == False:
     os.mkdir(dirname)
@@ -119,11 +124,16 @@ def main():
         print("uvc_start_streaming failed: {0}".format(res))
         exit(1)
       
-      cv2.namedWindow("Lepton Radiometry",cv2.WINDOW_NORMAL)
-      cv2.resizeWindow("Lepton Radiometry", width=640, height=480)
+      # cv2.namedWindow("Lepton Radiometry",cv2.WINDOW_NORMAL)
+      # cv2.resizeWindow("Lepton Radiometry", width=240, height=180)
+      if cap is not None:
+        cv2.namedWindow("Temperature",cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("Temperature", width=480, height=360)
       try:
         while True:
           data = q.get(True, 500)
+          if cap is not None:
+            ret,img2 = cap.read()
           if data is None:
             break
           minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data)
@@ -134,7 +144,9 @@ def main():
           # display_temperature(img, maxVal, maxLoc, (0, 0, 255))
           img = cv2.flip(img,-1)
           cv2.imshow("Lepton Radiometry", img)
-          k = cv2.waitKey(50) # 20fps
+          if ret:
+            cv2.imshow("Temperature", img2)
+          k = cv2.waitKey(50) # 10fps
           if k == 27:
             break
           elif k == ord('t'):
@@ -148,10 +160,8 @@ def main():
             df = pd.DataFrame(data_temp)
             df = df.loc[::-1].loc[:,::-1]
             df.to_csv(f"{fname}.csv",index=False, header=None)
-            if sys.argv[1] == '4':
-              ret,img2 = cap.read()
-              if ret:
-                cv2.imwrite(f"{fname}_.jpg",img2)
+            if ret:
+              cv2.imwrite(f"{fname}_.jpg",img2)
         cv2.destroyAllWindows()
       finally:
         libuvc.uvc_stop_streaming(devh)

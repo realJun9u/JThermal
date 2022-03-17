@@ -68,10 +68,10 @@ for fname in file_list:
     df = pd.read_csv(csvname,header=None)
     roi = df.loc[ty:ty+h,tx:tx+w]
     print(np.array(roi))
-    print("mean :",roi.mean().mean())
+    print("mean : %.2f"%(roi.mean().mean()))
     print("max :",roi.max().max())
 
-    if sys.argv[1] == '4':
+    if sys.argv[1] == '3' or sys.argv[1] == '4':
         imgname = dirname + '/' + fname + '_.jpg'
         img = cv2.imread(imgname)
         cv2.imshow('Img',img)
