@@ -5,7 +5,7 @@ except ImportError:
     print("ERROR python-opencv must be installed")
     exit(1)
 
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(0)
 #cap = cv2.VideoCapture(1)
 
 if not cap.isOpened():
@@ -30,5 +30,6 @@ while True:
 
     cv2.imshow("C920", img)
     if cv2.waitKey(50) == 27: # 20fps
+        cv2.imwrite("sample.jpg",img)
         break
 cv2.destroyAllWindows()
