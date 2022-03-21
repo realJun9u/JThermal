@@ -2,10 +2,7 @@ import cv2
 import os
 import sys
 import pytesseract
-import numpy as np
-from scipy.ndimage.interpolation import shift
-from PIL import Image
-import matplotlib.pyplot as plt
+import re
 from glob import glob
 
 def onMouse(event,x,y,flags,param):
@@ -29,10 +26,9 @@ def onMouse(event,x,y,flags,param):
                 img=img[iy:iy+h+1,ix:ix+w+1]
                 cv2.imshow('Img',img)
 
-def initcapture(sample_file):
+def initcapture(sample_img,n_roi):
     coordinates=[]
-    sample_img = cv2.imread(sample_file)
-    for _ in range(1):
+    for _ in range(n_roi):
         global drag,ix,iy,tx,ty,w,h,yellow,img
         img = sample_img.copy()
         drag = False
@@ -40,8 +36,8 @@ def initcapture(sample_file):
         tx,ty=0,0
         w,h=0,0
         yellow = (0,255,255)
-        cv2.namedWindow('Img',cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('Img',(640,480))
+        cv2.namedWindow('Img',cv2.WINDOW_NORMAL | cv2.WINDOW_AUTOSIZE)
+        #cv2.resizeWindow('Img',(640,480))
         cv2.imshow('Img',img)
         cv2.setMouseCallback('Img',onMouse)
         cv2.waitKey(0)
@@ -54,12 +50,29 @@ def initcapture(sample_file):
         cv2.imshow("Img",sample_img[y1:y2,x1:x2])
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    valid = input("want to continue? [y/n] : ").lower()
-    if valid == 'y':
-        ret = True
-    else:
-        ret = False
+    ret = True
+    # valid = input("want to continue? [y/n] : ").lower()
+    # if valid == 'y':
+    #     ret = True
+    # else:
+    #     ret = False
     return ret, coordinates
+
+def imgtonum(img_roi):
+    clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(12,12))
+    filename = str(os.getpid()) + ".png"
+    # ---image preprocessing---
+    img = cv2.cvtColor(img_roi,cv2.COLOR_BGR2GRAY)
+    img = cv2.bitwise_not(img)
+    img = clahe.apply(img)
+    img = cv2.GaussianBlur(img,(3,3),0)
+    img = cv2.threshold(img,10,250,cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    
+    # --------Tesseract---------
+    cv2.imwrite(filename, img)
+    result = pytesseract.image_to_string(filename,config='digits')
+    os.remove(filename)
+    return float(re.sub(r'[^0-9]','',result)) / 10
 
 def main():
     if len(sys.argv) == 1:
@@ -72,11 +85,10 @@ def main():
         print("invalid arguments")
         exit(1)
 
-    ret, coordinates = initcapture(img_list[0]) # ROI 뜯기
+    ret, coordinates = initcapture(img_list[0],2) # ROI 뜯기
     if ret == False:
         exit(1)
 
-    kernel = np.ones((5,5),np.uint8)
     clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(12,12))
     filename = str(os.getpid()) + ".png"
     for file in img_list:
@@ -84,11 +96,12 @@ def main():
         for i in range(len(coordinates)):
             y1,y2,x1,x2 = coordinates[i]
             img = origin_img[y1:y2,x1:x2]
-            img = cv2.resize(img,dsize=(320,240),interpolation=cv2.INTER_CUBIC)
+            # img = cv2.resize(img,dsize=(320,240),interpolation=cv2.INTER_CUBIC)
             img = cv2.bitwise_not(img)
             img = clahe.apply(img)
+            img = cv2.GaussianBlur(img,(3,3),0)
             img = cv2.threshold(img,10,250,cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-            img = cv2.dilate(img,kernel,iterations=3)
+            # img = cv2.dilate(img,kernel,iterations=1)
 
             # --------Tesseract---------
             cv2.imwrite(filename, img)

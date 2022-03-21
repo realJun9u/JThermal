@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 
 from uvctypes import *
-import time
+from labquest_ocr import onMouse, initcapture, imgtonum
 import cv2
-import numpy as np
 import datetime
 import pandas as pd
-import sys
+import numpy as np
 import os
+import sys
+import pytesseract
+import re
+from glob import glob
+
 try:
   from queue import Queue
 except ImportError:
   from Queue import Queue
-import platform
 
 BUF_SIZE = 2
 q = Queue(BUF_SIZE)
@@ -33,9 +36,6 @@ def py_frame_callback(frame, userptr):
 
 PTR_PY_FRAME_CALLBACK = CFUNCTYPE(None, POINTER(uvc_frame), c_void_p)(py_frame_callback)
 
-def ktof(val):
-  return (1.8 * ktoc(val) + 32.0)
-
 def ktoc(val):
   return (val - 27315) / 100.0
 
@@ -44,43 +44,34 @@ def raw_to_8bit(data):
   np.right_shift(data, 8, data)
   return cv2.cvtColor(np.uint8(data), cv2.COLOR_GRAY2RGB)
 
-def display_temperature(img, val_k, loc, color):
-  # Kelvin to Celsius
-  val = ktoc(val_k)
-  # cv2.putText(img,"{0:.1f} degC".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 2)
-  x, y = loc
-  # draw crossline
-  cv2.line(img, (x - 2, y), (x + 2, y), color, 1)
-  cv2.line(img, (x, y - 2), (x, y + 2), color, 1)
-
 def main():
-  if len(sys.argv) < 2 or len(sys.argv) > 3:
-    print("Usage : lepton (experiment number) [,(try number)]")
+  if len(sys.argv) < 2 or len(sys.argv) > 4:
+    print("Usage : lepton (experiment number) [,(try number),(distance)]")
     exit(1)
   dirname = "/home/pi/JThermal/images/" + sys.argv[1]
   
   if sys.argv[1] == '3' or sys.argv[1] == '4':
-    if len(sys.argv) != 3:
-      print("Expirement 3,4 must need try number")
+    if len(sys.argv) < 4:
+      print("Expirement 3,4 must need try number and distance")
       exit(1)
     dirname += "/" + sys.argv[2]
-  
-  if sys.argv[1] == '3' or sys.argv[1] == '4':
+    if os.path.isdir(dirname) == False:
+      os.mkdir(dirname)
+    else:
+      print(f"{dirname} is exist.")
+    dirname += "/" + sys.argv[3]
+    if os.path.isdir(dirname) == False:
+      os.mkdir(dirname)
+    else:
+      print(f"{dirname} is exist.")
+    
     cap = cv2.VideoCapture(1)
     if not cap.isOpened():
       print("Camera not found!")
       exit(1)
-    # cap.set(3,cap.get(3)/2)
-    # cap.set(4,cap.get(4)/2)
   else:
     cap = None
     ret = False
-  
-  if os.path.isdir(dirname) == False:
-    os.mkdir(dirname)
-  else:
-    print(dirname,"is exist!")
-    exit(1)
   
   ctx = POINTER(uvc_context)()
   dev = POINTER(uvc_device)()
@@ -103,7 +94,6 @@ def main():
       if res < 0:
         print("uvc_open error")
         exit(1)
-
       print("device opened!")
 
       print_device_info(devh)
@@ -123,44 +113,55 @@ def main():
         print("uvc_start_streaming failed: {0}".format(res))
         exit(1)
       
-      # cv2.namedWindow("Lepton Radiometry",cv2.WINDOW_NORMAL)
-      # cv2.resizeWindow("Lepton Radiometry", width=240, height=180)
       if cap is not None:
         cv2.namedWindow("Temperature",cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Temperature", width=480, height=360)
+        _,img_labquest = cap.read()
+        _, coordinates = initcapture(img_labquest,2)
+        ondo_pre = [0,0]
       try:
         while True:
+          # Lepton read
           data = q.get(True, 500)
-          if cap is not None:
-            ret,img2 = cap.read()
           if data is None:
             break
-          minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data)
+          # Labquest read
+          if cap is not None:
+            ret,img_labquest = cap.read()
+            ondo = []
+            for i in range(len(coordinates)):
+              y1,y2,x1,x2 = coordinates[i]
+              img_roi = img_labquest[y1:y2,x1:x2]
+              try:
+                ondo.append(imgtonum(img_roi))
+              except:
+                pass
+
           data_temp = data.copy()
           img = raw_to_8bit(data)
-          #img = cv2.applyColorMap(img, cv2.COLORMAP_INFERNO)
-          # display_temperature(img, minVal, minLoc, (255, 0, 0))
-          # display_temperature(img, maxVal, maxLoc, (0, 0, 255))
+          img = cv2.applyColorMap(img, cv2.COLORMAP_HOT)
           img = cv2.flip(img,-1)
+
           cv2.imshow("Lepton Radiometry", img)
           if ret:
-            cv2.imshow("Temperature", img2)
-          k = cv2.waitKey(50) # 10fps
-          if k == 27:
+            cv2.imshow("Temperature", img_labquest)
+          k = cv2.waitKey(1000) # 1fps
+          if k == 27 or np.mean(ondo) < 30: # ESC - terminate
+            print("Terminate")
             break
-          elif k == ord('t'):
-            print("Max Temperature :",ktoc(maxVal))
-          elif k == 13:
+          if not any(np.equal(ondo_pre,ondo)) and ondo: # Save
+            ondo_pre = ondo
             now = datetime.datetime.now()
             fname = dirname + now.strftime("/%m%d_%H%M%S")
             cv2.imwrite(f"{fname}.jpg",img)
             print(f"File {fname}.jpg is Saved")
+            print("Ondo :",ondo)
             data_temp = ktoc(data_temp)
             df = pd.DataFrame(data_temp)
             df = df.loc[::-1].loc[:,::-1]
             df.to_csv(f"{fname}.csv",index=False, header=None)
             if ret:
-              cv2.imwrite(f"{fname}_.jpg",img2)
+              cv2.imwrite(f"{fname}_.jpg",img_labquest)
         cv2.destroyAllWindows()
       finally:
         libuvc.uvc_stop_streaming(devh)
