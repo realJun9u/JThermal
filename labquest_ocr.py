@@ -74,7 +74,7 @@ def imgtonum(img_roi):
     os.remove(filename)
     return float(re.sub(r'[^0-9]','',result)) / 10
 
-def main():
+if __name__=="__main__":
     if len(sys.argv) == 1:
         img_list = ['sample.jpg']
     elif len(sys.argv) == 2:
@@ -116,6 +116,3 @@ def main():
             cv2.waitKey(0)
     cv2.destroyAllWindows()
     os.remove(filename)
-
-if __name__=="__main__":
-    main()
